@@ -44,6 +44,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare NativeWind cache for Metro
+        shell: pwsh
+        run: |
+          $cache = "node_modules/react-native-css-interop/.cache"
+          New-Item -ItemType Directory -Force -Path $cache | Out-Null
+          $css = Get-ChildItem "dist-web/_expo/static/css/*.css" | Select-Object -First 1
+          if ($css) {
+            Copy-Item $css.FullName "$cache/web.css" -Force
+          } else {
+            Set-Content -Path "$cache/web.css" -Value "/* NativeWind bootstrap */" -Encoding utf8
+          }
+
       - name: Export Expo web build
         run: pnpm export:web
 
