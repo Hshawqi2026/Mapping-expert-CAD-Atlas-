@@ -13,6 +13,9 @@
     "lint": "expo lint",
     "format": "prettier --write .",
     "test": "vitest run",
+    "export:web": "expo export --platform web --output-dir dist-web",
+    "desktop:dev": "electron .",
+    "desktop:dist": "electron-builder --win nsis --x64",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -85,6 +88,8 @@
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "drizzle-kit": "^0.31.8",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.2",
     "eslint-config-expo": "~10.0.0",
@@ -95,5 +100,34 @@
     "typescript": "~5.9.3",
     "vitest": "^2.1.9"
   },
-  "packageManager": "pnpm@9.12.0"
+  "packageManager": "pnpm@9.12.0",
+  "build": {
+    "appId": "com.app.agonsurveyor.desktop",
+    "productName": "Agon Surveyor",
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "directories": {
+      "output": "release",
+      "buildResources": "assets/images"
+    },
+    "files": [
+      "electron/**/*",
+      "dist-web/**/*",
+      "assets/images/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "assets/images/icon.png",
+      "artifactName": "Agon-Surveyor-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Agon Surveyor"
+    }
+  }
 }

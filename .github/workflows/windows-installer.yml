@@ -1,0 +1,61 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'context/**'
+      - 'screens/**'
+      - 'lib/**'
+      - 'assets/**'
+      - 'electron/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'app.config.ts'
+      - '.github/workflows/windows-installer.yml'
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  windows-installer:
+    name: Windows 10/11 x64 installer
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack
+        shell: bash
+        run: corepack enable
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Export Expo web build
+        run: pnpm export:web
+
+      - name: Build Windows x64 NSIS installer
+        run: pnpm desktop:dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: agon-surveyor-windows-x64
+          path: release/*Setup*.exe
+          if-no-files-found: error
+          retention-days: 30
