@@ -15,7 +15,7 @@
     "test": "vitest run",
     "export:web": "expo export --platform web --output-dir dist-web",
     "desktop:dev": "electron .",
-    "desktop:dist": "electron-builder --win nsis --x64",
+    "desktop:dist": "node scripts/prepare-desktop.mjs && electron-builder --win nsis --x64 --projectDir .desktop-build",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "android": "expo run:android",
     "ios": "expo run:ios",
