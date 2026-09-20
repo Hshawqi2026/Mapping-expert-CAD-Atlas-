@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -91,6 +91,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -107,6 +108,29 @@ async function createWindow() {
     win.loadURL(`http://127.0.0.1:${port}/`);
   }
 }
+
+ipcMain.handle('save-report-pdf', async (_event, { html, suggestedName }) => {
+  if (typeof html !== 'string' || html.length > 2_000_000) throw new Error('تقرير PDF غير صالح.');
+  const pdfWindow = new BrowserWindow({ show: false, width: 1200, height: 900, webPreferences: { sandbox: true } });
+  try {
+    await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    const pdf = await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'A4',
+      margins: { top: 0.35, bottom: 0.35, left: 0.35, right: 0.35 },
+    });
+    const result = await dialog.showSaveDialog({
+      title: 'حفظ التقرير المساحي PDF',
+      defaultPath: suggestedName || 'survey-report.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (result.canceled || !result.filePath) return { canceled: true };
+    fs.writeFileSync(result.filePath, pdf);
+    return { canceled: false, filePath: result.filePath };
+  } finally {
+    if (!pdfWindow.isDestroyed()) pdfWindow.close();
+  }
+});
 
 app.whenReady().then(() => {
   createWindow().catch((error) => {

@@ -46,6 +46,37 @@ function sanitizeFileName(name: string) {
   );
 }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+}
+
+function buildSurveyReportHtml(project: { name: string }, items: any[]) {
+  const rows = items.map((feature, index) => {
+    const coordinate = feature.coords[0]
+      ? `${feature.coords[0][0].toFixed(6)}, ${feature.coords[0][1].toFixed(6)}`
+      : "-";
+    return `<tr><td>${index + 1}</td><td>${escapeHtml(feature.name)}</td><td>${escapeHtml(feature.category)}</td><td>${escapeHtml(feature.type)}</td><td>${coordinate}</td><td>${escapeHtml(feature.source)}</td></tr>`;
+  }).join("");
+  const generatedAt = new Date().toLocaleString("ar-SA");
+  return `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
+    @page { size: A4; margin: 12mm; } body { font-family: Arial, Tahoma, sans-serif; color: #14251f; direction: rtl; }
+    h1 { color: #0E7C66; margin: 0 0 4px; } h2 { font-size: 15px; color: #0E7C66; border-bottom: 2px solid #D8E8E2; padding-bottom: 5px; }
+    .meta { color: #5B6B62; font-size: 11px; margin-bottom: 18px; } .summary { display: flex; gap: 10px; margin: 12px 0 20px; }
+    .box { border: 1px solid #D8E8E2; border-radius: 6px; padding: 9px; flex: 1; background: #F4F9F6; } .label { display: block; color: #5B6B62; font-size: 10px; } .value { font-size: 17px; font-weight: bold; color: #0E7C66; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; } th { background: #0E7C66; color: white; } th, td { border: 1px solid #C9D9D2; padding: 6px 5px; text-align: right; } tr:nth-child(even) { background: #F7FAF8; }
+    footer { margin-top: 20px; color: #6B7C73; font-size: 9px; text-align: center; }
+  </style></head><body>
+    <h1>تقرير مساحي</h1><div class="meta">المشروع: ${escapeHtml(project.name)}<br>تاريخ الإنشاء: ${generatedAt}</div>
+    <div class="summary"><div class="box"><span class="label">إجمالي العناصر</span><span class="value">${items.length}</span></div><div class="box"><span class="label">المباني</span><span class="value">${items.filter((f) => f.type === "building").length}</span></div><div class="box"><span class="label">النقاط</span><span class="value">${items.filter((f) => f.type === "point").length}</span></div></div>
+    <h2>جدول العناصر والإحداثيات</h2><table><thead><tr><th>#</th><th>الاسم</th><th>التصنيف</th><th>النوع</th><th>الإحداثيات WGS84</th><th>المصدر</th></tr></thead><tbody>${rows}</tbody></table>
+    <footer>Agon Surveyor — تقرير مُنشأ من داخل التطبيق</footer>
+  </body></html>`;
+}
+
 export default function ExportScreen() {
   const { palette } = useTheme();
   const { activeProject } = useProjects();
@@ -375,6 +406,36 @@ export default function ExportScreen() {
     }
   };
 
+  const exportPDF = async () => {
+    if (!activeProject || !filteredFeatures.length) {
+      Alert.alert("لا توجد عناصر", "أضف عناصر مساحية أو فعّل طبقة تحتوي على بيانات أولاً.");
+      return;
+    }
+    try {
+      setExporting(true);
+      const html = buildSurveyReportHtml(activeProject, filteredFeatures);
+      const fileName = `${sanitizeFileName(activeProject.name)}_${Date.now()}_survey-report.pdf`;
+      const desktop = (globalThis as any).agonDesktop;
+      if (desktop?.savePdf) {
+        const result = await desktop.savePdf(html, fileName);
+        if (!result?.canceled) Alert.alert("تم إنشاء التقرير", `تم حفظ التقرير في:\n${result.filePath}`);
+      } else if (Platform.OS === "web") {
+        const reportWindow = window.open("", "_blank", "width=1000,height=800");
+        if (!reportWindow) throw new Error("يرجى السماح بالنوافذ المنبثقة لإنشاء PDF.");
+        reportWindow.document.write(html);
+        reportWindow.document.close();
+        reportWindow.focus();
+        setTimeout(() => reportWindow.print(), 400);
+      } else {
+        Alert.alert("تصدير PDF", "تصدير PDF المباشر متاح في نسخة Windows والويب.");
+      }
+    } catch (e: any) {
+      Alert.alert("فشل تصدير PDF", e?.message ?? "تعذر إنشاء التقرير المساحي.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const exportShapefile = async () => {
     if (!activeProject || !filteredFeatures.length) {
       Alert.alert(
@@ -586,6 +647,15 @@ export default function ExportScreen() {
               <Text style={styles.exportBtnText}>
                 {exporting ? "جارٍ إنشاء الملف..." : "تصدير ملف DXF"}
               </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={exportPDF}
+              disabled={exporting}
+              style={[styles.exportBtn, { backgroundColor: "#B45309", opacity: exporting ? 0.7 : 1 }]}
+            >
+              <Ionicons name="document-text-outline" size={20} color="#fff" />
+              <Text style={styles.exportBtnText}>تصدير تقرير مساحي PDF</Text>
             </Pressable>
 
             <Pressable
