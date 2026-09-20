@@ -44,6 +44,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate official app icon
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "assets/images/icon.png")) { throw "Official app icon is missing" }
+
       - name: Prepare NativeWind cache for Metro
         shell: pwsh
         run: |

@@ -112,8 +112,19 @@ export default function MapScreen() {
             setDrawMode('none'); setDrawCount(0);
             break;
           }
-          const type: FeatureType = mode === 'point' ? 'point' : mode === 'polygon' ? 'polygon' : 'line';
-          setPendingFeature({ type, coords });
+          const type: FeatureType = mode === 'point' ? 'point' : mode === 'polygon' ? 'polygon' : mode === 'building' ? 'building' : 'line';
+          if (type === 'polygon' || type === 'building') {
+            const label = type === 'building' ? 'مبنى مرسوم' : 'مضلع مرسوم';
+            addFeature({
+              id: uid(), type, name: `${label} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`,
+              category: type === 'building' ? 'مبنى سكني' : 'قطعة أرض', coords,
+              source: 'manual', color: type === 'building' ? '#7C3AED' : '#0E7C66',
+              createdAt: Date.now(), layerId: `manual-${type}`, visible: true,
+            });
+            showToast(type === 'building' ? 'تم حفظ المبنى تلقائياً' : 'تم حفظ المضلع تلقائياً');
+          } else {
+            setPendingFeature({ type, coords });
+          }
           setDrawMode('none');
           setDrawCount(0);
           break;
@@ -122,7 +133,7 @@ export default function MapScreen() {
           break;
       }
     },
-    [layerId, syncFeatures, activeProject, updateProjectView]
+    [layerId, syncFeatures, activeProject, updateProjectView, addFeature, showToast]
   );
 
   const selectLayer = (id: string) => {
@@ -308,7 +319,7 @@ export default function MapScreen() {
         {drawMode !== 'none' ? (
           <View style={[styles.drawBar, { backgroundColor: palette.bgElevated, borderColor: palette.border }]}>
             <Text style={[styles.drawText, { color: palette.text }]}>
-              {drawMode === 'point' ? 'انقر على الخريطة لتحديد نقطة' : drawMode === 'measure-line' ? `قياس مسافة: ${drawCount} نقطة` : drawMode === 'measure-area' ? `قياس مساحة: ${drawCount} نقطة` : `تم إضافة ${drawCount} نقطة`}
+              {drawMode === 'point' ? 'انقر على الخريطة لتحديد نقطة' : drawMode === 'measure-line' ? `قياس مسافة: ${drawCount} نقطة` : drawMode === 'measure-area' ? `قياس مساحة: ${drawCount} نقطة` : drawMode === 'building' ? `رسم مبنى: ${drawCount} نقطة — انقر على البداية للإغلاق` : `رسم مضلع: ${drawCount} نقطة — انقر على البداية للإغلاق`}
             </Text>
             <View style={styles.drawActions}>
               <Pressable onPress={cancelDraw} style={[styles.drawBtn, { backgroundColor: palette.card }]}>
@@ -322,8 +333,8 @@ export default function MapScreen() {
               {drawMode !== 'point' && (
                 <Pressable
                   onPress={finishDraw}
-                  disabled={drawCount < ((drawMode === 'polygon' || drawMode === 'measure-area') ? 3 : 2)}
-                  style={[styles.drawBtnWide, { backgroundColor: palette.primary, opacity: drawCount < ((drawMode === 'polygon' || drawMode === 'measure-area') ? 3 : 2) ? 0.5 : 1 }]}
+                  disabled={drawCount < ((drawMode === 'polygon' || drawMode === 'building' || drawMode === 'measure-area') ? 3 : 2)}
+                  style={[styles.drawBtnWide, { backgroundColor: palette.primary, opacity: drawCount < ((drawMode === 'polygon' || drawMode === 'building' || drawMode === 'measure-area') ? 3 : 2) ? 0.5 : 1 }]}
                 >
                   <Ionicons name="checkmark" size={18} color="#fff" />
                   <Text style={styles.finishText}>إنهاء</Text>
@@ -337,7 +348,8 @@ export default function MapScreen() {
               <View style={styles.speedDialOptions}>
                 <SpeedOption icon="location" label="نقطة" color={palette.primary} onPress={() => startDraw('point')} />
                 <SpeedOption icon="trail-sign" label="خط" color={palette.accent} onPress={() => startDraw('line')} />
-                <SpeedOption icon="shapes" label="مضلع/مبنى" color="#7C3AED" onPress={() => startDraw('polygon')} />
+                <SpeedOption icon="shapes" label="رسم مضلع" color="#7C3AED" onPress={() => startDraw('polygon')} />
+                <SpeedOption icon="business" label="رسم مبنى" color="#9333EA" onPress={() => startDraw('building')} />
                 <SpeedOption
                   icon="business"
                   label={fetchingOSM ? 'جارٍ الجلب...' : 'جلب مباني OSM'}

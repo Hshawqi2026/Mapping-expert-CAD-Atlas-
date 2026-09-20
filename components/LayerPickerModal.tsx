@@ -35,6 +35,7 @@ export default function LayerPickerModal({ visible, onClose, currentLayerId, onS
           <Text style={[styles.subtitle, { color: palette.textMuted }]}>
             جميع الطبقات مجانية ومفتوحة المصدر - بدون مفاتيح API
           </Text>
+          <Text style={[styles.notice, { color: palette.primary }]}>القمر الصناعي متاح للعرض والرسم فقط عبر Esri، وتُحفظ البلاطات التي تمت مشاهدتها محلياً في نسخة Windows لاستخدامها لاحقاً دون اتصال.</Text>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsRow} contentContainerStyle={{ gap: 8 }}>
             {CATEGORIES.map((c) => (
@@ -114,6 +115,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 18, fontWeight: '800' },
   subtitle: { fontSize: 12, marginTop: 4, marginBottom: 12, textAlign: 'right' },
+  notice: { fontSize: 11, lineHeight: 17, marginBottom: 8, textAlign: 'right' },
   tabsRow: { flexDirection: 'row-reverse' },
   tabChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },

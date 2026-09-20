@@ -41,8 +41,20 @@ export function buildMapHtml(
   L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
 
   var tileLayers = {};
+  var desktopTiles = window.location.hostname === '127.0.0.1';
+  var DesktopTileLayer = L.TileLayer.extend({
+    getTileUrl: function(coords) {
+      var remoteUrl = L.TileLayer.prototype.getTileUrl.call(this, coords);
+      return '/tile-proxy?url=' + encodeURIComponent(remoteUrl);
+    }
+  });
   LAYERS.forEach(function(l){
-    tileLayers[l.id] = L.tileLayer(l.url, {
+    tileLayers[l.id] = desktopTiles ? new DesktopTileLayer(l.url, {
+      subdomains: l.subdomains || 'abc',
+      maxZoom: l.maxZoom || 19,
+      attribution: l.attribution,
+      crossOrigin: true
+    }) : L.tileLayer(l.url, {
       subdomains: l.subdomains || 'abc',
       maxZoom: l.maxZoom || 19,
       attribution: l.attribution,
@@ -115,7 +127,7 @@ export function buildMapHtml(
       L.circleMarker(p, { radius: 5, color: '#0E7C66', weight: 2, fillColor: '#ffffff', fillOpacity: 1 }).addTo(drawLayerGroup);
     });
     if (drawPoints.length > 1) {
-      if (drawMode === 'polygon' || drawMode === 'measure-area') {
+      if (drawMode === 'polygon' || drawMode === 'building' || drawMode === 'measure-area') {
         L.polygon(drawPoints, { color: '#F59E0B', weight: 2, dashArray: '6,4', fillOpacity: 0.15 }).addTo(drawLayerGroup);
       } else if (drawMode === 'rectangle' && drawPoints.length === 2) {
         L.rectangle([drawPoints[0], drawPoints[1]], { color: '#2563EB', weight: 2, dashArray: '6,4', fillOpacity: 0.12 }).addTo(drawLayerGroup);
@@ -166,7 +178,7 @@ export function buildMapHtml(
         break;
       }
       case 'FINISH_DRAWING': {
-      if (drawPoints.length >= ((drawMode === 'polygon' || drawMode === 'measure-area') ? 3 : 2)) {
+        if (drawPoints.length >= ((drawMode === 'polygon' || drawMode === 'building' || drawMode === 'measure-area') ? 3 : 2)) {
           sendToRN({ type: 'DRAW_COMPLETE', payload: { coords: drawPoints.slice(), mode: drawMode } });
         }
         drawPoints = [];
@@ -213,8 +225,21 @@ export function buildMapHtml(
   map.on('click', function(e){
     if (drawMode === 'point') {
       sendToRN({ type: 'DRAW_COMPLETE', payload: { coords: [[e.latlng.lat, e.latlng.lng]], mode: 'point' } });
-      } else if (drawMode === 'line' || drawMode === 'polygon' || drawMode === 'rectangle' || drawMode === 'measure-line' || drawMode === 'measure-area') {
-      drawPoints.push([e.latlng.lat, e.latlng.lng]);
+      } else if (drawMode === 'line' || drawMode === 'polygon' || drawMode === 'building' || drawMode === 'rectangle' || drawMode === 'measure-line' || drawMode === 'measure-area') {
+        if ((drawMode === 'polygon' || drawMode === 'building') && drawPoints.length >= 3) {
+          var first = drawPoints[0];
+          var startPoint = map.latLngToContainerPoint(L.latLng(first[0], first[1]));
+          var closePoint = map.containerPointToLatLng(startPoint.add([16, 0]));
+          var closeDistance = map.distance(L.latLng(first[0], first[1]), closePoint);
+          var distance = map.distance(e.latlng, L.latLng(first[0], first[1]));
+          if (distance <= Math.max(8, closeDistance)) {
+            sendToRN({ type: 'DRAW_COMPLETE', payload: { coords: drawPoints.slice(), mode: drawMode } });
+            drawPoints = [];
+            redrawTemp();
+            return;
+          }
+        }
+        drawPoints.push([e.latlng.lat, e.latlng.lng]);
       redrawTemp();
       sendToRN({ type: 'DRAW_UPDATE', payload: { count: drawPoints.length } });
     } else {

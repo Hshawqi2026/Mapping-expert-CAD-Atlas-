@@ -55,7 +55,7 @@ export interface BaseLayer {
   preview: string; // color swatch fallback
 }
 
-export type DrawMode = 'none' | 'point' | 'line' | 'polygon' | 'rectangle' | 'measure-line' | 'measure-area';
+export type DrawMode = 'none' | 'point' | 'line' | 'polygon' | 'building' | 'rectangle' | 'measure-line' | 'measure-area';
 
 export interface MapBounds {
   north: number;

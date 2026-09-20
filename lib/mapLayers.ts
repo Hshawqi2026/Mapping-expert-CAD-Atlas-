@@ -60,8 +60,8 @@ export const BASE_LAYERS: BaseLayer[] = [
   },
   {
     id: 'esri-satellite',
-    name: 'Esri World Imagery',
-    nameAr: 'قمر صناعي (Esri)',
+    name: 'Esri World Imagery (keyless)',
+    nameAr: 'قمر صناعي عالي الدقة (Esri)',
     category: 'satellite',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: '© Esri, Maxar, Earthstar Geographics',

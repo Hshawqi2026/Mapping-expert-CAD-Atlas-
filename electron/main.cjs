@@ -1,6 +1,7 @@
 const { app, BrowserWindow, shell } = require('electron');
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 const isDev = !app.isPackaged;
@@ -8,6 +9,8 @@ let staticServer;
 
 function startStaticServer() {
   const webRoot = path.join(__dirname, 'dist-web');
+  const tileCache = path.join(app.getPath('userData'), 'tile-cache');
+  fs.mkdirSync(tileCache, { recursive: true });
   const mimeTypes = {
     '.css': 'text/css; charset=utf-8',
     '.html': 'text/html; charset=utf-8',
@@ -22,6 +25,29 @@ function startStaticServer() {
 
   return new Promise((resolve, reject) => {
     staticServer = http.createServer((request, response) => {
+      if ((request.url || '').startsWith('/tile-proxy?')) {
+        const requested = new URL(request.url, 'http://127.0.0.1');
+        const tileUrl = requested.searchParams.get('url');
+        const allowed = tileUrl && /^(https:\/\/server\.arcgisonline\.com|https:\/\/[a-d]\.tile\.openstreetmap\.org|https:\/\/[a-d]\.basemaps\.cartocdn\.com)/i.test(tileUrl);
+        if (!allowed) {
+          response.writeHead(400).end('Unsupported tile source');
+          return;
+        }
+        const cacheFile = path.join(tileCache, crypto.createHash('sha256').update(tileUrl).digest('hex') + '.tile');
+        const sendCached = () => fs.readFile(cacheFile, (error, data) => {
+          if (error) return response.writeHead(503).end('Tile unavailable offline');
+          response.writeHead(200, { 'Cache-Control': 'public, max-age=31536000', 'Content-Type': 'image/png', 'X-Agon-Cache': 'hit' });
+          response.end(data);
+        });
+        fetch(tileUrl).then(async (tileResponse) => {
+          if (!tileResponse.ok) throw new Error(`Tile request failed: ${tileResponse.status}`);
+          const buffer = Buffer.from(await tileResponse.arrayBuffer());
+          fs.writeFile(cacheFile, buffer, () => {});
+          response.writeHead(200, { 'Cache-Control': 'public, max-age=31536000', 'Content-Type': tileResponse.headers.get('content-type') || 'image/png', 'X-Agon-Cache': 'miss' });
+          response.end(buffer);
+        }).catch(sendCached);
+        return;
+      }
       let requestPath = decodeURIComponent((request.url || '/').split('?')[0]);
       if (requestPath === '/') requestPath = '/index.html';
       if (!path.extname(requestPath)) requestPath += '.html';
