@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
@@ -32,6 +33,18 @@ export default function ImportDataModal({
   const [hemisphere, setHemisphere] = useState<"N" | "S">("N");
   const [loading, setLoading] = useState(false);
 
+  const readBrowserFile = async (file: any, binary: boolean) => {
+    if (!file) throw new Error("لم يتم استلام ملف صالح من منتقي الملفات.");
+    if (!binary) return { text: await file.text() };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binaryText = "";
+    const chunkSize = 0x8000;
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binaryText += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+    return { base64: globalThis.btoa(binaryText) };
+  };
+
   const pickAndImport = async () => {
     const utmZone = Number(zone);
     if (!Number.isInteger(utmZone) || utmZone < 1 || utmZone > 60) {
@@ -49,22 +62,25 @@ export default function ImportDataModal({
       });
       if (result.canceled) return;
       const asset = result.assets[0];
-      const isBinary = /\.(xlsx|xls)$/i.test(asset.name);
-      const content = isBinary
-        ? {
-            base64:
-              asset.base64 ??
-              (await FileSystem.readAsStringAsync(asset.uri, {
-                encoding: FileSystem.EncodingType.Base64,
-              })),
-          }
-        : {
-            text: await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.UTF8,
-            }),
-          };
+      const fileName = asset.name || "imported.csv";
+      const isBinary = /\.(xlsx|xls)$/i.test(fileName);
+      const content = Platform.OS === "web" && asset.file
+        ? await readBrowserFile(asset.file, isBinary)
+        : isBinary
+          ? {
+              base64:
+                asset.base64 ??
+                (await FileSystem.readAsStringAsync(asset.uri, {
+                  encoding: FileSystem.EncodingType.Base64,
+                })),
+            }
+          : {
+              text: await FileSystem.readAsStringAsync(asset.uri, {
+                encoding: FileSystem.EncodingType.UTF8,
+              }),
+            };
       const parsed = parseImportedFile(
-        { name: asset.name, ...content },
+        { name: fileName, ...content },
         { utmZone, hemisphere },
       );
       onImported(parsed.features, parsed.coords, parsed.kind);
