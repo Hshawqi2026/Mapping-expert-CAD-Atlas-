@@ -29,7 +29,7 @@ import { buildLocalBuildingModels, LocalModelConfig } from '../lib/buildingModel
 
 export default function MapScreen() {
   const { palette } = useTheme();
-  const { activeProject, addFeature, addFeatures, updateFeature, updateFeatures, updateProjectView } = useProjects();
+  const { activeProject, addFeature, addFeatures, updateFeature, updateFeatures, removeFeature, updateProjectView } = useProjects();
   const mapRef = useRef<GeoMapHandle>(null);
 
   const [ready, setReady] = useState(false);
@@ -48,6 +48,7 @@ export default function MapScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [regionFeatures, setRegionFeatures] = useState<GeoFeature[]>([]);
+  const [selectedFeature, setSelectedFeature] = useState<GeoFeature | null>(null);
 
   const initialCenter = activeProject?.center ?? [24.7136, 46.6753];
   const initialZoom = activeProject?.zoom ?? 15;
@@ -92,6 +93,11 @@ export default function MapScreen() {
           setZoom(msg.payload.zoom);
           if (activeProject) updateProjectView(msg.payload.center, msg.payload.zoom);
           break;
+        case 'FEATURE_CLICK': {
+          const feature = activeProject?.features.find((item) => item.id === msg.payload?.id);
+          if (feature) setSelectedFeature(feature);
+          break;
+        }
         case 'DRAW_UPDATE':
           setDrawCount(msg.payload.count);
           break;
@@ -119,7 +125,8 @@ export default function MapScreen() {
               id: uid(), type, name: `${label} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`,
               category: type === 'building' ? 'مبنى سكني' : 'قطعة أرض', coords,
               source: 'manual', color: type === 'building' ? '#7C3AED' : '#0E7C66',
-              createdAt: Date.now(), layerId: `manual-${type}`, visible: true,
+              createdAt: Date.now(), modelSource: type === 'building' ? 'manual' : undefined,
+              layerId: `manual-${type}`, visible: true,
             });
             showToast(type === 'building' ? 'تم حفظ المبنى تلقائياً' : 'تم حفظ المضلع تلقائياً');
           } else {
@@ -165,6 +172,12 @@ export default function MapScreen() {
   const undoPoint = () => mapRef.current?.send({ type: 'UNDO_POINT' });
 
   const saveFeature = (name: string, category: string, color: string, notes: string) => {
+    if (selectedFeature) {
+      updateFeature(selectedFeature.id, { name, category, color, notes: notes || undefined });
+      setSelectedFeature(null);
+      showToast('تم تحديث العنصر بنجاح');
+      return;
+    }
     if (!pendingFeature) return;
     const feature: GeoFeature = {
       id: uid(),
@@ -182,6 +195,14 @@ export default function MapScreen() {
     addFeature(feature);
     setPendingFeature(null);
     showToast('تم حفظ العنصر بنجاح');
+  };
+
+  const deleteSelectedFeature = () => {
+    if (!selectedFeature) return;
+    Alert.alert('حذف العنصر', `هل تريد حذف «${selectedFeature.name}»؟`, [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'حذف', style: 'destructive', onPress: () => { removeFeature(selectedFeature.id); setSelectedFeature(null); showToast('تم حذف العنصر'); } },
+    ]);
   };
 
   const locateMe = async () => {
@@ -382,10 +403,12 @@ export default function MapScreen() {
         />
         <ProjectSwitcherModal visible={projectModalVisible} onClose={() => setProjectModalVisible(false)} />
         <FeatureFormModal
-          visible={!!pendingFeature}
-          type={pendingFeature?.type ?? null}
-          pointCount={pendingFeature?.coords.length ?? 0}
-          onCancel={() => setPendingFeature(null)}
+          visible={!!pendingFeature || !!selectedFeature}
+          type={selectedFeature?.type ?? pendingFeature?.type ?? null}
+          pointCount={selectedFeature?.coords.length ?? pendingFeature?.coords.length ?? 0}
+          feature={selectedFeature}
+          onCancel={() => { setPendingFeature(null); setSelectedFeature(null); }}
+          onDelete={selectedFeature ? deleteSelectedFeature : undefined}
           onSave={saveFeature}
         />
         <BuildingModelModal

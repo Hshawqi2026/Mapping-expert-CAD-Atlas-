@@ -82,6 +82,6 @@ export interface RNToWebMessage {
 }
 
 export interface WebToRNMessage {
-  type: 'READY' | 'MAP_CLICK' | 'MAP_MOVED' | 'DRAW_UPDATE' | 'DRAW_COMPLETE' | 'ERROR';
+  type: 'READY' | 'MAP_CLICK' | 'MAP_MOVED' | 'DRAW_UPDATE' | 'DRAW_COMPLETE' | 'FEATURE_CLICK' | 'ERROR';
   payload?: any;
 }

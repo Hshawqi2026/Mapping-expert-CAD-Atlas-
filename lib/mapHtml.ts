@@ -116,6 +116,10 @@ export function buildMapHtml(
       var pointDetails = f.pointCode ? ' · الرمز: ' + f.pointCode : '';
       var elevationDetails = (f.elevation !== undefined && f.elevation !== null) ? ' · المنسوب: ' + f.elevation : '';
       layer.bindTooltip(f.name + pointDetails + elevationDetails, { className: 'gs-tooltip', direction: 'top', sticky: true });
+      layer.on('click', function(event) {
+        if (event && event.originalEvent) L.DomEvent.stopPropagation(event.originalEvent);
+        sendToRN({ type: 'FEATURE_CLICK', payload: { id: f.id } });
+      });
       layer.addTo(featureLayerGroup);
     });
   }
