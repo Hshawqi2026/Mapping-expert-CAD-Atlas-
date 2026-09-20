@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +9,9 @@ rmSync(staging, { recursive: true, force: true });
 mkdirSync(staging, { recursive: true });
 cpSync(join(root, 'electron', 'main.cjs'), join(staging, 'main.cjs'));
 cpSync(join(root, 'electron', 'preload.cjs'), join(staging, 'preload.cjs'));
+cpSync(join(root, 'raster_engine'), join(staging, 'raster_engine'), { recursive: true });
+const bundledRasterEngine = join(root, 'raster_engine', 'bin', process.platform === 'win32' ? 'agon-raster-engine.exe' : 'agon-raster-engine');
+if (existsSync(bundledRasterEngine)) cpSync(bundledRasterEngine, join(staging, 'raster_engine', process.platform === 'win32' ? 'agon-raster-engine.exe' : 'agon-raster-engine'));
 cpSync(join(root, 'dist-web'), join(staging, 'dist-web'), { recursive: true });
 cpSync(join(root, 'assets', 'images', 'icon.png'), join(staging, 'icon.png'));
 
@@ -24,7 +27,7 @@ const packageJson = {
     productName: 'Agon Surveyor',
     electronVersion: '44.4.3',
     directories: { output: '../release', buildResources: '.' },
-  files: ['main.cjs', 'preload.cjs', 'dist-web/**/*', 'icon.png'],
+  files: ['main.cjs', 'preload.cjs', 'raster_engine/**/*', 'dist-web/**/*', 'icon.png'],
     win: {
       target: [{ target: 'nsis', arch: ['x64'] }],
       icon: 'icon.png',

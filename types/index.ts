@@ -41,6 +41,34 @@ export interface Project {
   features: GeoFeature[];
   center: LatLng;
   zoom: number;
+  rasterLayers?: RasterLayer[];
+}
+
+export interface RasterGCP {
+  id: string;
+  pixel: number;
+  line: number;
+  easting: number;
+  northing: number;
+}
+
+export interface RasterLayer {
+  id: string;
+  name: string;
+  sourcePath: string;
+  previewUrl?: string;
+  bounds?: MapBounds;
+  width?: number;
+  height?: number;
+  crs?: string;
+  sourceCrs?: string;
+  opacity: number;
+  visible: boolean;
+  zIndex: number;
+  georeferenced: boolean;
+  rmsError?: number;
+  gcps?: RasterGCP[];
+  importedAt: number;
 }
 
 export interface BaseLayer {
@@ -70,6 +98,7 @@ export interface RNToWebMessage {
     | 'SET_OVERLAY'
     | 'LOCATE'
     | 'SET_FEATURES'
+    | 'SET_RASTERS'
     | 'SET_DRAW_MODE'
     | 'FINISH_DRAWING'
     | 'CANCEL_DRAWING'

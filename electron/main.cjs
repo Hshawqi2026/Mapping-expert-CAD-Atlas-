@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
+const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -6,6 +7,47 @@ const path = require('path');
 
 const isDev = !app.isPackaged;
 let staticServer;
+let rasterProcess;
+let rasterRequestId = 0;
+const rasterPending = new Map();
+
+function startRasterEngine() {
+  if (rasterProcess) return;
+  const packagedEngine = path.join(__dirname, 'raster_engine', process.platform === 'win32' ? 'agon-raster-engine.exe' : 'agon-raster-engine');
+  const python = process.env.AGON_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+  const command = fs.existsSync(packagedEngine) ? packagedEngine : python;
+  const args = fs.existsSync(packagedEngine) ? [] : [path.join(__dirname, 'raster_engine', 'server.py')];
+  rasterProcess = spawn(command, args, { cwd: path.join(__dirname, 'raster_engine'), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  let buffer = '';
+  rasterProcess.stdout.on('data', (chunk) => {
+    buffer += chunk.toString();
+    const lines = buffer.split(/\r?\n/);
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      try {
+        const message = JSON.parse(line);
+        const pending = rasterPending.get(message.id);
+        if (!pending) continue;
+        rasterPending.delete(message.id);
+        message.ok ? pending.resolve(message.result) : pending.reject(new Error(message.error?.message || 'Raster Engine error'));
+      } catch (error) { console.error('[Raster Engine] Invalid response', error); }
+    }
+  });
+  rasterProcess.stderr.on('data', (chunk) => console.log('[Raster Engine]', chunk.toString().trim()));
+  rasterProcess.on('exit', () => {
+    for (const pending of rasterPending.values()) pending.reject(new Error('Raster Engine stopped'));
+    rasterPending.clear(); rasterProcess = undefined;
+  });
+}
+
+function rasterRequest(command, args) {
+  startRasterEngine();
+  const id = String(++rasterRequestId);
+  return new Promise((resolve, reject) => {
+    rasterPending.set(id, { resolve, reject });
+    rasterProcess.stdin.write(JSON.stringify({ id, command, args }) + '\n');
+  });
+}
 
 function startStaticServer() {
   const webRoot = path.join(__dirname, 'dist-web');
@@ -132,6 +174,18 @@ ipcMain.handle('save-report-pdf', async (_event, { html, suggestedName }) => {
   }
 });
 
+ipcMain.handle('raster-open-file', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'Raster imagery', extensions: ['tif', 'tiff', 'jpg', 'jpeg', 'png', 'geotiff'] }],
+  });
+  return result.canceled ? null : result.filePaths[0];
+});
+ipcMain.handle('raster-inspect', (_event, args) => rasterRequest('inspect', args));
+ipcMain.handle('raster-preview', (_event, args) => rasterRequest('preview', args));
+ipcMain.handle('raster-georeference', (_event, args) => rasterRequest('georeference', args));
+ipcMain.handle('raster-reproject', (_event, args) => rasterRequest('reproject', args));
+
 app.whenReady().then(() => {
   createWindow().catch((error) => {
     console.error('Failed to start Agon Surveyor:', error);
@@ -144,6 +198,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (staticServer) staticServer.close();
+  if (rasterProcess) rasterProcess.kill();
   if (process.platform !== 'darwin') app.quit();
 });
 

@@ -62,6 +62,9 @@ Thumbs.db
 .desktop-build/
 release/
 .cache/
+.raster-venv/
+.raster-build/
+raster_engine/bin/
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/

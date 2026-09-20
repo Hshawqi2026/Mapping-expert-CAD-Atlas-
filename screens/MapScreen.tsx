@@ -18,6 +18,7 @@ import FeatureFormModal from '../components/FeatureFormModal';
 import ProjectSwitcherModal from '../components/ProjectSwitcherModal';
 import DeveloperFooter from '../components/DeveloperFooter';
 import BuildingModelModal from '../components/BuildingModelModal';
+import RasterManagerModal from '../components/RasterManagerModal';
 import { useTheme } from '../context/ThemeContext';
 import { useProjects } from '../context/ProjectsContext';
 import { DrawMode, FeatureType, GeoFeature, MapBounds, WebToRNMessage } from '../types';
@@ -29,7 +30,7 @@ import { buildLocalBuildingModels, LocalModelConfig } from '../lib/buildingModel
 
 export default function MapScreen() {
   const { palette } = useTheme();
-  const { activeProject, addFeature, addFeatures, updateFeature, updateFeatures, removeFeature, updateProjectView } = useProjects();
+  const { activeProject, addFeature, addFeatures, updateFeature, updateFeatures, removeFeature, updateProjectView, updateProjectRasterLayers } = useProjects();
   const mapRef = useRef<GeoMapHandle>(null);
 
   const [ready, setReady] = useState(false);
@@ -49,6 +50,7 @@ export default function MapScreen() {
   const [modelModalVisible, setModelModalVisible] = useState(false);
   const [regionFeatures, setRegionFeatures] = useState<GeoFeature[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<GeoFeature | null>(null);
+  const [rasterModalVisible, setRasterModalVisible] = useState(false);
 
   const initialCenter = activeProject?.center ?? [24.7136, 46.6753];
   const initialZoom = activeProject?.zoom ?? 15;
@@ -69,9 +71,15 @@ export default function MapScreen() {
     mapRef.current?.send({ type: 'SET_FEATURES', payload: { features: activeProject?.features ?? [] } });
   }, [ready, activeProject?.features]);
 
+  const syncRasters = useCallback(() => {
+    if (!ready) return;
+    mapRef.current?.send({ type: 'SET_RASTERS', payload: { layers: activeProject?.rasterLayers ?? [] } });
+  }, [ready, activeProject?.rasterLayers]);
+
   useEffect(() => {
     syncFeatures();
   }, [syncFeatures]);
+  useEffect(() => { syncRasters(); }, [syncRasters]);
 
   useEffect(() => {
     const unsub = subscribeFocus((coords) => {
@@ -87,6 +95,7 @@ export default function MapScreen() {
           setReady(true);
           mapRef.current?.send({ type: 'SET_LAYER', payload: { id: layerId } });
           syncFeatures();
+          syncRasters();
           break;
         case 'MAP_MOVED':
           setBounds(msg.payload.bounds);
@@ -140,7 +149,7 @@ export default function MapScreen() {
           break;
       }
     },
-    [layerId, syncFeatures, activeProject, updateProjectView, addFeature, showToast]
+    [layerId, syncFeatures, syncRasters, activeProject, updateProjectView, addFeature, showToast]
   );
 
   const selectLayer = (id: string) => {
@@ -282,7 +291,7 @@ export default function MapScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: palette.bg }]} edges={['top']}>
       <View style={styles.flex}>
-        <GeoMap ref={mapRef} initialCenter={initialCenter as [number, number]} initialZoom={initialZoom} onMessage={handleWebMessage} />
+        <GeoMap ref={mapRef} initialCenter={initialCenter as [number, number]} initialZoom={initialZoom} rasterLayers={activeProject?.rasterLayers ?? []} onMessage={handleWebMessage} />
 
         {!ready && (
           <View style={[StyleSheet.absoluteFill, styles.loadingOverlay, { backgroundColor: palette.bg }]}>
@@ -312,6 +321,7 @@ export default function MapScreen() {
         {/* Right vertical toolbar */}
         <View style={styles.rightToolbar}>
           <FAB icon="layers" onPress={() => setLayerModalVisible(true)} />
+          <FAB icon="images" onPress={() => setRasterModalVisible(true)} />
           <FAB icon="locate" onPress={locateMe} disabled={locating} />
           <FAB icon="add" onPress={() => mapRef.current?.send({ type: 'ZOOM_IN' })} />
           <FAB icon="remove" onPress={() => mapRef.current?.send({ type: 'ZOOM_OUT' })} />
@@ -416,6 +426,12 @@ export default function MapScreen() {
           buildingCount={regionFeatures.filter((feature) => feature.type === 'building').length}
           onClose={() => setModelModalVisible(false)}
           onCreate={create3DModel}
+        />
+        <RasterManagerModal
+          visible={rasterModalVisible}
+          layers={activeProject?.rasterLayers ?? []}
+          onClose={() => setRasterModalVisible(false)}
+          onChange={updateProjectRasterLayers}
         />
       </View>
     </SafeAreaView>

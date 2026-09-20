@@ -1,7 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { buildMapHtml } from '../lib/mapHtml';
-import { RNToWebMessage, WebToRNMessage } from '../types';
+import { RNToWebMessage, WebToRNMessage, RasterLayer } from '../types';
 
 export interface GeoMapHandle {
   send: (msg: RNToWebMessage) => void;
@@ -11,11 +11,12 @@ interface GeoMapProps {
   initialCenter: [number, number];
   initialZoom: number;
   onMessage: (msg: WebToRNMessage) => void;
+  rasterLayers?: RasterLayer[];
 }
 
-const GeoMap = forwardRef<GeoMapHandle, GeoMapProps>(({ initialCenter, initialZoom, onMessage }, ref) => {
+const GeoMap = forwardRef<GeoMapHandle, GeoMapProps>(({ initialCenter, initialZoom, onMessage, rasterLayers = [] }, ref) => {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const html = useRef(buildMapHtml(initialCenter[0], initialCenter[1], initialZoom)).current;
+  const html = useRef(buildMapHtml(initialCenter[0], initialCenter[1], initialZoom, rasterLayers)).current;
 
   useImperativeHandle(ref, () => ({
     send: (msg: RNToWebMessage) => {

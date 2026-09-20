@@ -12,6 +12,8 @@ on:
       - 'lib/**'
       - 'assets/**'
       - 'electron/**'
+      - 'raster_engine/**'
+      - 'scripts/prepare-desktop.mjs'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'app.config.ts'
@@ -63,6 +65,20 @@ jobs:
 
       - name: Export Expo web build
         run: pnpm export:web
+
+      - name: Setup Python for Raster Engine
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build local Raster Engine executable
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r raster_engine/requirements.txt pyinstaller
+          New-Item -ItemType Directory -Force -Path raster_engine/bin | Out-Null
+          pyinstaller --onefile --clean --name agon-raster-engine --distpath raster_engine/bin --workpath .raster-build --specpath .raster-build raster_engine/server.py --paths raster_engine
+          if (-not (Test-Path "raster_engine/bin/agon-raster-engine.exe")) { throw "Raster Engine executable was not produced" }
 
       - name: Build Windows x64 NSIS installer
         run: pnpm desktop:dist
