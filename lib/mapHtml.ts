@@ -1,4 +1,5 @@
 import { BASE_LAYERS, SATELLITE_LABELS_OVERLAY } from "./mapLayers";
+import type { RasterLayer } from "../types";
 
 // Builds a fully self-contained HTML document embedding Leaflet + all free
 // base layers + a small messaging protocol used to talk to React Native
@@ -7,9 +8,11 @@ export function buildMapHtml(
   centerLat: number,
   centerLon: number,
   zoom: number,
+  rasterLayers: RasterLayer[] = [],
 ): string {
   const layersJSON = JSON.stringify(BASE_LAYERS);
   const labelsJSON = JSON.stringify(SATELLITE_LABELS_OVERLAY);
+  const rastersJSON = JSON.stringify(rasterLayers);
 
   return `<!DOCTYPE html>
 <html>
@@ -34,6 +37,7 @@ export function buildMapHtml(
 (function(){
   var LAYERS = ${layersJSON};
   var LABELS_OVERLAY = ${labelsJSON};
+  var RASTER_LAYERS = ${rastersJSON};
 
   var map = L.map('map', { zoomControl: false, attributionControl: true, tap: true })
     .setView([${centerLat}, ${centerLon}], ${zoom});
@@ -70,9 +74,20 @@ export function buildMapHtml(
   var featureLayerGroup = L.layerGroup().addTo(map);
   var drawLayerGroup = L.layerGroup().addTo(map);
   var locationLayerGroup = L.layerGroup().addTo(map);
+  var rasterLayerGroup = L.layerGroup().addTo(map);
 
   var drawMode = 'none';
   var drawPoints = [];
+
+  function renderRasters(layers) {
+    rasterLayerGroup.clearLayers();
+    (layers || []).filter(function(r){ return r.visible !== false && r.previewUrl && r.bounds; })
+      .sort(function(a,b){ return (a.zIndex || 0) - (b.zIndex || 0); })
+      .forEach(function(r){
+        var bounds = [[r.bounds.south, r.bounds.west], [r.bounds.north, r.bounds.east]];
+        L.imageOverlay(r.previewUrl, bounds, { opacity: Math.max(0, Math.min(1, r.opacity ?? 1)), interactive: false }).addTo(rasterLayerGroup);
+      });
+  }
 
   function sendToRN(obj){
     var msg = JSON.stringify(obj);
@@ -173,6 +188,11 @@ export function buildMapHtml(
         renderFeatures(cmd.payload && cmd.payload.features);
         break;
       }
+      case 'SET_RASTERS': {
+        RASTER_LAYERS = (cmd.payload && cmd.payload.layers) || [];
+        renderRasters(RASTER_LAYERS);
+        break;
+      }
       case 'SET_DRAW_MODE': {
         drawMode = (cmd.payload && cmd.payload.mode) || 'none';
         drawPoints = [];
@@ -269,9 +289,10 @@ export function buildMapHtml(
   });
 
   window.addEventListener('load', function(){
+    renderRasters(RASTER_LAYERS);
     sendToRN({ type: 'READY' });
   });
-  setTimeout(function(){ sendToRN({ type: 'READY' }); }, 400);
+  setTimeout(function(){ renderRasters(RASTER_LAYERS); sendToRN({ type: 'READY' }); }, 400);
 })();
 </script>
 </body>

@@ -65,6 +65,8 @@ release/
 .raster-venv/
 .raster-build/
 raster_engine/bin/
+__pycache__/
+*.pyc
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
