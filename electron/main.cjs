@@ -98,6 +98,28 @@ function startStaticServer() {
         }).catch(sendCached);
         return;
       }
+      if ((request.url || '').startsWith('/service-tile-proxy?')) {
+        const requested = new URL(request.url, 'http://127.0.0.1');
+        const tileUrl = requested.searchParams.get('url');
+        if (!tileUrl || !/^https?:\/\//i.test(tileUrl)) {
+          response.writeHead(400).end('Unsupported service source');
+          return;
+        }
+        const cacheFile = path.join(tileCache, crypto.createHash('sha256').update(`service:${tileUrl}`).digest('hex') + '.tile');
+        const sendCached = () => fs.readFile(cacheFile, (error, data) => {
+          if (error) return response.writeHead(503).end('Service tile unavailable offline');
+          response.writeHead(200, { 'Cache-Control': 'public, max-age=31536000', 'Content-Type': 'image/png', 'X-Agon-Cache': 'hit' });
+          response.end(data);
+        });
+        fetch(tileUrl).then(async (tileResponse) => {
+          if (!tileResponse.ok) throw new Error(`Service tile request failed: ${tileResponse.status}`);
+          const buffer = Buffer.from(await tileResponse.arrayBuffer());
+          fs.writeFile(cacheFile, buffer, () => {});
+          response.writeHead(200, { 'Cache-Control': 'public, max-age=31536000', 'Content-Type': tileResponse.headers.get('content-type') || 'image/png', 'X-Agon-Cache': 'miss' });
+          response.end(buffer);
+        }).catch(sendCached);
+        return;
+      }
       let requestPath = decodeURIComponent((request.url || '/').split('?')[0]);
       if (requestPath === '/') requestPath = '/index.html';
       if (!path.extname(requestPath)) requestPath += '.html';

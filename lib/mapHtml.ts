@@ -99,9 +99,10 @@ export function buildMapHtml(
   function renderServices(services) {
     serviceLayerGroup.clearLayers();
     (services || []).filter(function(s){ return s.enabled !== false && s.url; }).forEach(function(s){
+      var CachedLayer = L.TileLayer.extend({ getTileUrl: function(coords) { var remote = L.TileLayer.prototype.getTileUrl.call(this, coords); return window.location.hostname === '127.0.0.1' && s.cacheEnabled !== false ? '/service-tile-proxy?url=' + encodeURIComponent(remote) : remote; } });
       var layer = s.type === 'WMS'
-        ? L.tileLayer.wms(s.url, { layers: s.layers || '', format: 'image/png', transparent: true, opacity: s.opacity ?? 0.8, maxZoom: 22, attribution: s.attribution || 'WMS' })
-        : L.tileLayer(s.url, { opacity: s.opacity ?? 0.8, maxZoom: 22, attribution: s.attribution || s.type });
+        ? new CachedLayer(s.url, { layers: s.layers || '', format: 'image/png', transparent: true, opacity: s.opacity ?? 0.8, maxZoom: 22, attribution: s.attribution || 'WMS' })
+        : new CachedLayer(s.url, { opacity: s.opacity ?? 0.8, maxZoom: 22, attribution: s.attribution || s.type });
       layer.addTo(serviceLayerGroup);
     });
   }
