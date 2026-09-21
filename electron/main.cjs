@@ -13,11 +13,19 @@ const rasterPending = new Map();
 
 function startRasterEngine() {
   if (rasterProcess) return;
-  const packagedEngine = path.join(__dirname, 'raster_engine', process.platform === 'win32' ? 'agon-raster-engine.exe' : 'agon-raster-engine');
+  const engineName = process.platform === 'win32' ? 'agon-raster-engine.exe' : 'agon-raster-engine';
+  // Native executables cannot run from app.asar. electron-builder places the
+  // binary in app.asar.unpacked through asarUnpack below.
+  const packagedCandidates = [
+    path.join(process.resourcesPath, 'app.asar.unpacked', 'raster_engine', engineName),
+    path.join(__dirname, 'raster_engine', engineName),
+  ];
+  const packagedEngine = packagedCandidates.find((candidate) => fs.existsSync(candidate));
   const python = process.env.AGON_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-  const command = fs.existsSync(packagedEngine) ? packagedEngine : python;
-  const args = fs.existsSync(packagedEngine) ? [] : [path.join(__dirname, 'raster_engine', 'server.py')];
-  rasterProcess = spawn(command, args, { cwd: path.join(__dirname, 'raster_engine'), stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  const command = packagedEngine || python;
+  const engineDir = packagedEngine ? path.dirname(packagedEngine) : path.join(__dirname, 'raster_engine');
+  const args = packagedEngine ? [] : [path.join(engineDir, 'server.py')];
+  rasterProcess = spawn(command, args, { cwd: engineDir, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
   let buffer = '';
   rasterProcess.stdout.on('data', (chunk) => {
     buffer += chunk.toString();

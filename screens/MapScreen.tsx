@@ -19,6 +19,8 @@ import ProjectSwitcherModal from '../components/ProjectSwitcherModal';
 import DeveloperFooter from '../components/DeveloperFooter';
 import BuildingModelModal from '../components/BuildingModelModal';
 import RasterManagerModal from '../components/RasterManagerModal';
+import GCPManagerModal from '../components/GCPManagerModal';
+import RasterServicesModal from '../components/RasterServicesModal';
 import { useTheme } from '../context/ThemeContext';
 import { useProjects } from '../context/ProjectsContext';
 import { DrawMode, FeatureType, GeoFeature, MapBounds, WebToRNMessage } from '../types';
@@ -30,7 +32,7 @@ import { buildLocalBuildingModels, LocalModelConfig } from '../lib/buildingModel
 
 export default function MapScreen() {
   const { palette } = useTheme();
-  const { activeProject, addFeature, addFeatures, updateFeature, updateFeatures, removeFeature, updateProjectView, updateProjectRasterLayers } = useProjects();
+  const { activeProject, addFeature, addFeatures, updateFeature, updateFeatures, removeFeature, updateProjectView, updateProjectRasterLayers, updateProjectRasterServices } = useProjects();
   const mapRef = useRef<GeoMapHandle>(null);
 
   const [ready, setReady] = useState(false);
@@ -51,6 +53,9 @@ export default function MapScreen() {
   const [regionFeatures, setRegionFeatures] = useState<GeoFeature[]>([]);
   const [selectedFeature, setSelectedFeature] = useState<GeoFeature | null>(null);
   const [rasterModalVisible, setRasterModalVisible] = useState(false);
+  const [gcpModalVisible, setGcpModalVisible] = useState(false);
+  const [servicesModalVisible, setServicesModalVisible] = useState(false);
+  const [swipeOn, setSwipeOn] = useState(false);
 
   const initialCenter = activeProject?.center ?? [24.7136, 46.6753];
   const initialZoom = activeProject?.zoom ?? 15;
@@ -75,11 +80,16 @@ export default function MapScreen() {
     if (!ready) return;
     mapRef.current?.send({ type: 'SET_RASTERS', payload: { layers: activeProject?.rasterLayers ?? [] } });
   }, [ready, activeProject?.rasterLayers]);
+  const syncServices = useCallback(() => {
+    if (!ready) return;
+    mapRef.current?.send({ type: 'SET_RASTER_SERVICES', payload: { services: activeProject?.rasterServices ?? [] } });
+  }, [ready, activeProject?.rasterServices]);
 
   useEffect(() => {
     syncFeatures();
   }, [syncFeatures]);
   useEffect(() => { syncRasters(); }, [syncRasters]);
+  useEffect(() => { syncServices(); }, [syncServices]);
 
   useEffect(() => {
     const unsub = subscribeFocus((coords) => {
@@ -96,6 +106,7 @@ export default function MapScreen() {
           mapRef.current?.send({ type: 'SET_LAYER', payload: { id: layerId } });
           syncFeatures();
           syncRasters();
+          syncServices();
           break;
         case 'MAP_MOVED':
           setBounds(msg.payload.bounds);
@@ -149,7 +160,7 @@ export default function MapScreen() {
           break;
       }
     },
-    [layerId, syncFeatures, syncRasters, activeProject, updateProjectView, addFeature, showToast]
+    [layerId, syncFeatures, syncRasters, syncServices, activeProject, updateProjectView, addFeature, showToast]
   );
 
   const selectLayer = (id: string) => {
@@ -291,7 +302,7 @@ export default function MapScreen() {
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: palette.bg }]} edges={['top']}>
       <View style={styles.flex}>
-        <GeoMap ref={mapRef} initialCenter={initialCenter as [number, number]} initialZoom={initialZoom} rasterLayers={activeProject?.rasterLayers ?? []} onMessage={handleWebMessage} />
+        <GeoMap ref={mapRef} initialCenter={initialCenter as [number, number]} initialZoom={initialZoom} rasterLayers={activeProject?.rasterLayers ?? []} rasterServices={activeProject?.rasterServices ?? []} onMessage={handleWebMessage} />
 
         {!ready && (
           <View style={[StyleSheet.absoluteFill, styles.loadingOverlay, { backgroundColor: palette.bg }]}>
@@ -322,6 +333,8 @@ export default function MapScreen() {
         <View style={styles.rightToolbar}>
           <FAB icon="layers" onPress={() => setLayerModalVisible(true)} />
           <FAB icon="images" onPress={() => setRasterModalVisible(true)} />
+          <FAB icon="git-compare" onPress={() => { const enabled = !swipeOn; setSwipeOn(enabled); mapRef.current?.send({ type: 'SET_SWIPE', payload: { enabled, ratio: 0.5 } }); }} />
+          <FAB icon="globe-outline" onPress={() => setServicesModalVisible(true)} />
           <FAB icon="locate" onPress={locateMe} disabled={locating} />
           <FAB icon="add" onPress={() => mapRef.current?.send({ type: 'ZOOM_IN' })} />
           <FAB icon="remove" onPress={() => mapRef.current?.send({ type: 'ZOOM_OUT' })} />
@@ -381,6 +394,7 @@ export default function MapScreen() {
                 <SpeedOption icon="trail-sign" label="خط" color={palette.accent} onPress={() => startDraw('line')} />
                 <SpeedOption icon="shapes" label="رسم مضلع" color="#7C3AED" onPress={() => startDraw('polygon')} />
                 <SpeedOption icon="business" label="رسم مبنى" color="#9333EA" onPress={() => startDraw('building')} />
+                <SpeedOption icon="locate-outline" label="GCP Manager" color="#0F766E" onPress={() => setGcpModalVisible(true)} />
                 <SpeedOption
                   icon="business"
                   label={fetchingOSM ? 'جارٍ الجلب...' : 'جلب مباني OSM'}
@@ -432,6 +446,18 @@ export default function MapScreen() {
           layers={activeProject?.rasterLayers ?? []}
           onClose={() => setRasterModalVisible(false)}
           onChange={updateProjectRasterLayers}
+        />
+        <GCPManagerModal
+          visible={gcpModalVisible}
+          layer={activeProject?.rasterLayers?.[0] ?? null}
+          onClose={() => setGcpModalVisible(false)}
+          onComplete={(layer) => updateProjectRasterLayers([...(activeProject?.rasterLayers ?? []).filter((x) => x.id !== layer.id), layer])}
+        />
+        <RasterServicesModal
+          visible={servicesModalVisible}
+          services={activeProject?.rasterServices ?? []}
+          onChange={updateProjectRasterServices}
+          onClose={() => setServicesModalVisible(false)}
         />
       </View>
     </SafeAreaView>

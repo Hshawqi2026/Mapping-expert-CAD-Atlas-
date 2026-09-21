@@ -42,6 +42,7 @@ export interface Project {
   center: LatLng;
   zoom: number;
   rasterLayers?: RasterLayer[];
+  rasterServices?: RasterService[];
 }
 
 export interface RasterGCP {
@@ -69,6 +70,22 @@ export interface RasterLayer {
   rmsError?: number;
   gcps?: RasterGCP[];
   importedAt: number;
+  serviceId?: string;
+}
+
+export type RasterServiceType = 'WMS' | 'WMTS' | 'XYZ';
+
+export interface RasterService {
+  id: string;
+  name: string;
+  type: RasterServiceType;
+  url: string;
+  layers?: string;
+  tileMatrixSet?: string;
+  attribution?: string;
+  enabled: boolean;
+  opacity: number;
+  cacheEnabled: boolean;
 }
 
 export interface BaseLayer {
@@ -99,6 +116,8 @@ export interface RNToWebMessage {
     | 'LOCATE'
     | 'SET_FEATURES'
     | 'SET_RASTERS'
+    | 'SET_RASTER_SERVICES'
+    | 'SET_SWIPE'
     | 'SET_DRAW_MODE'
     | 'FINISH_DRAWING'
     | 'CANCEL_DRAWING'

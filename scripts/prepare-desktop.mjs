@@ -26,6 +26,8 @@ const packageJson = {
     appId: 'com.app.agonsurveyor.desktop',
     productName: 'Agon Surveyor',
     electronVersion: '44.4.3',
+    asar: true,
+    asarUnpack: ['raster_engine/agon-raster-engine.exe', 'raster_engine/**/*.dll'],
     directories: { output: '../release', buildResources: '.' },
   files: ['main.cjs', 'preload.cjs', 'raster_engine/**/*', 'dist-web/**/*', 'icon.png'],
     win: {

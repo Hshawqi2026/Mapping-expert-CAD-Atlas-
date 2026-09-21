@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
-import { GeoFeature, Project, RasterLayer } from '../types';
+import { GeoFeature, Project, RasterLayer, RasterService } from '../types';
 import {
   loadProjects,
   saveProjects,
@@ -25,6 +25,7 @@ interface ProjectsContextValue {
   clearOSMFeatures: () => void;
   updateProjectView: (center: [number, number], zoom: number) => void;
   updateProjectRasterLayers: (layers: RasterLayer[]) => void;
+  updateProjectRasterServices: (services: RasterService[]) => void;
 }
 
 const ProjectsContext = createContext<ProjectsContextValue | null>(null);
@@ -178,6 +179,11 @@ export const ProjectsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [mutateActive]
   );
 
+  const updateProjectRasterServices = useCallback(
+    (services: RasterService[]) => mutateActive((p) => ({ ...p, rasterServices: services })),
+    [mutateActive]
+  );
+
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId]
@@ -200,6 +206,7 @@ export const ProjectsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     clearOSMFeatures,
     updateProjectView,
     updateProjectRasterLayers,
+    updateProjectRasterServices,
   };
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;

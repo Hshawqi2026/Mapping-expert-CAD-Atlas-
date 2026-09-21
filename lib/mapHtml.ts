@@ -1,5 +1,5 @@
 import { BASE_LAYERS, SATELLITE_LABELS_OVERLAY } from "./mapLayers";
-import type { RasterLayer } from "../types";
+import type { RasterLayer, RasterService } from "../types";
 
 // Builds a fully self-contained HTML document embedding Leaflet + all free
 // base layers + a small messaging protocol used to talk to React Native
@@ -9,10 +9,12 @@ export function buildMapHtml(
   centerLon: number,
   zoom: number,
   rasterLayers: RasterLayer[] = [],
+  rasterServices: RasterService[] = [],
 ): string {
   const layersJSON = JSON.stringify(BASE_LAYERS);
   const labelsJSON = JSON.stringify(SATELLITE_LABELS_OVERLAY);
   const rastersJSON = JSON.stringify(rasterLayers);
+  const servicesJSON = JSON.stringify(rasterServices);
 
   return `<!DOCTYPE html>
 <html>
@@ -38,6 +40,7 @@ export function buildMapHtml(
   var LAYERS = ${layersJSON};
   var LABELS_OVERLAY = ${labelsJSON};
   var RASTER_LAYERS = ${rastersJSON};
+  var RASTER_SERVICES = ${servicesJSON};
 
   var map = L.map('map', { zoomControl: false, attributionControl: true, tap: true })
     .setView([${centerLat}, ${centerLon}], ${zoom});
@@ -75,6 +78,10 @@ export function buildMapHtml(
   var drawLayerGroup = L.layerGroup().addTo(map);
   var locationLayerGroup = L.layerGroup().addTo(map);
   var rasterLayerGroup = L.layerGroup().addTo(map);
+  var serviceLayerGroup = L.layerGroup().addTo(map);
+  var swipeActive = false, swipeRatio = 0.5;
+  map.createPane('swipePane');
+  map.getPane('swipePane').style.zIndex = 420;
 
   var drawMode = 'none';
   var drawPoints = [];
@@ -87,6 +94,19 @@ export function buildMapHtml(
         var bounds = [[r.bounds.south, r.bounds.west], [r.bounds.north, r.bounds.east]];
         L.imageOverlay(r.previewUrl, bounds, { opacity: Math.max(0, Math.min(1, r.opacity ?? 1)), interactive: false }).addTo(rasterLayerGroup);
       });
+  }
+
+  function renderServices(services) {
+    serviceLayerGroup.clearLayers();
+    (services || []).filter(function(s){ return s.enabled !== false && s.url; }).forEach(function(s){
+      var layer = s.type === 'WMS'
+        ? L.tileLayer.wms(s.url, { layers: s.layers || '', format: 'image/png', transparent: true, opacity: s.opacity ?? 0.8, maxZoom: 22, attribution: s.attribution || 'WMS' })
+        : L.tileLayer(s.url, { opacity: s.opacity ?? 0.8, maxZoom: 22, attribution: s.attribution || s.type });
+      layer.addTo(serviceLayerGroup);
+    });
+  }
+  function applySwipe() {
+    map.getPane('swipePane').style.clipPath = swipeActive ? 'inset(0 ' + ((1 - swipeRatio) * 100) + '% 0 0)' : 'none';
   }
 
   function sendToRN(obj){
@@ -193,6 +213,17 @@ export function buildMapHtml(
         renderRasters(RASTER_LAYERS);
         break;
       }
+      case 'SET_RASTER_SERVICES': {
+        RASTER_SERVICES = (cmd.payload && cmd.payload.services) || [];
+        renderServices(RASTER_SERVICES);
+        break;
+      }
+      case 'SET_SWIPE': {
+        swipeActive = !!(cmd.payload && cmd.payload.enabled);
+        swipeRatio = Math.max(0.05, Math.min(0.95, Number(cmd.payload && cmd.payload.ratio) || 0.5));
+        applySwipe();
+        break;
+      }
       case 'SET_DRAW_MODE': {
         drawMode = (cmd.payload && cmd.payload.mode) || 'none';
         drawPoints = [];
@@ -290,6 +321,7 @@ export function buildMapHtml(
 
   window.addEventListener('load', function(){
     renderRasters(RASTER_LAYERS);
+    renderServices(RASTER_SERVICES);
     sendToRN({ type: 'READY' });
   });
   setTimeout(function(){ renderRasters(RASTER_LAYERS); sendToRN({ type: 'READY' }); }, 400);
