@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld('agonDesktop', {
   previewRaster: (args) => ipcRenderer.invoke('raster-preview', args),
   georeferenceRaster: (args) => ipcRenderer.invoke('raster-georeference', args),
   reprojectRaster: (args) => ipcRenderer.invoke('raster-reproject', args),
+  rasterHealth: () => ipcRenderer.invoke('raster-health'),
 });

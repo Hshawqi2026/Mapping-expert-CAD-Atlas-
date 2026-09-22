@@ -26,6 +26,7 @@ export default function RasterManagerModal({ visible, layers, onClose, onChange 
       setBusy(true);
       const sourcePath = await desktop.openRasterFile();
       if (!sourcePath) return;
+      if (desktop.rasterHealth) await desktop.rasterHealth();
       const info = await desktop.inspectRaster({ path: sourcePath });
       let preview;
       try { preview = await desktop.previewRaster({ path: sourcePath, max_size: 1600 }); } catch (error: any) {
@@ -40,7 +41,8 @@ export default function RasterManagerModal({ visible, layers, onClose, onChange 
       };
       onChange([...layers, layer]);
     } catch (error: any) {
-      Alert.alert('فشل استيراد الصورة', error?.message ?? 'تعذر قراءة ملف الصورة أو CRS.');
+      const message = error?.message ?? String(error ?? 'تعذر قراءة ملف الصورة أو CRS.');
+      Alert.alert('فشل استيراد الصورة الجوية', `${message}\n\nتحقق من أن الملف GeoTIFF أو يحتوي على World File مثل .tfw/.jgw/.pgw، ثم أعد المحاولة.`);
     } finally { setBusy(false); }
   };
 

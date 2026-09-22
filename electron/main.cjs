@@ -18,14 +18,35 @@ function startRasterEngine() {
   // binary in app.asar.unpacked through asarUnpack below.
   const packagedCandidates = [
     path.join(process.resourcesPath, 'app.asar.unpacked', 'raster_engine', engineName),
+    path.join(process.resourcesPath, 'raster_engine', engineName),
     path.join(__dirname, 'raster_engine', engineName),
   ];
   const packagedEngine = packagedCandidates.find((candidate) => fs.existsSync(candidate));
   const python = process.env.AGON_PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
-  const command = packagedEngine || python;
-  const engineDir = packagedEngine ? path.dirname(packagedEngine) : path.join(__dirname, 'raster_engine');
-  const args = packagedEngine ? [] : [path.join(engineDir, 'server.py')];
+  let command = python;
+  let engineDir = path.join(__dirname, 'raster_engine');
+  let args = [path.join(engineDir, 'server.py')];
+  if (packagedEngine) {
+    // Always execute a native binary from userData, never from app.asar.
+    // This also handles installers that unpack the executable differently.
+    const runtimeDir = path.join(app.getPath('userData'), 'raster-engine');
+    fs.mkdirSync(runtimeDir, { recursive: true });
+    const runtimeEngine = path.join(runtimeDir, engineName);
+    if (!fs.existsSync(runtimeEngine) || fs.statSync(runtimeEngine).size !== fs.statSync(packagedEngine).size) {
+      fs.copyFileSync(packagedEngine, runtimeEngine);
+    }
+    command = runtimeEngine;
+    engineDir = runtimeDir;
+    args = [];
+  }
   rasterProcess = spawn(command, args, { cwd: engineDir, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+  rasterProcess.on('error', (error) => {
+    const message = `Raster Engine failed to start (${command}): ${error.message}`;
+    console.error(message);
+    for (const pending of rasterPending.values()) pending.reject(new Error(message));
+    rasterPending.clear();
+    rasterProcess = undefined;
+  });
   let buffer = '';
   rasterProcess.stdout.on('data', (chunk) => {
     buffer += chunk.toString();
@@ -207,7 +228,7 @@ ipcMain.handle('save-report-pdf', async (_event, { html, suggestedName }) => {
 ipcMain.handle('raster-open-file', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [{ name: 'Raster imagery', extensions: ['tif', 'tiff', 'jpg', 'jpeg', 'png', 'geotiff'] }],
+    filters: [{ name: 'Raster imagery', extensions: ['tif', 'tiff', 'geotiff', 'jp2', 'j2k', 'jpg', 'jpeg', 'png', 'bmp', 'webp'] }],
   });
   return result.canceled ? null : result.filePaths[0];
 });
@@ -215,6 +236,7 @@ ipcMain.handle('raster-inspect', (_event, args) => rasterRequest('inspect', args
 ipcMain.handle('raster-preview', (_event, args) => rasterRequest('preview', args));
 ipcMain.handle('raster-georeference', (_event, args) => rasterRequest('georeference', args));
 ipcMain.handle('raster-reproject', (_event, args) => rasterRequest('reproject', args));
+ipcMain.handle('raster-health', () => rasterRequest('health', {}));
 
 app.whenReady().then(() => {
   createWindow().catch((error) => {

@@ -1,6 +1,6 @@
 {
   "name": "agon-surveyor",
-  "version": "2.3.1",
+  "version": "2.3.3",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
